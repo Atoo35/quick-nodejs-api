@@ -18,7 +18,8 @@
   },
   "homepage": "https://github.com/Atoo35/quick-nodejs-api#readme",
   "dependencies": {
-    "express": "^4.18.2"
+    "express": "^4.18.2",
+    "pg": "^8.8.0"
   },
   "devDependencies": {
     "nodemon": "^2.0.20"
