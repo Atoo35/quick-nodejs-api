@@ -22,6 +22,7 @@ const TopicSchema = new mongoose.Schema({
   },
   percentage: {
     type: Number,
+    default:0,
   },
   topicBody: [{
     type: topicBody,

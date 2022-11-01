@@ -5,7 +5,7 @@ const bodyParser = require('body-parser')
 const mongoose = require('mongoose')
 const Topic = require('./TopicName')
 const port = 3000
-const CATEGORIES = ["UNDERSTOOD", "SOMEWHAT UNDERSTOOD", "NOT CLEAR", "WHAT RUBBISH"]
+const CATEGORIES = ["UNDERSTOOD", "SOMEWHAT UNDERSTOOD", "NOT CLEAR", "WHAT RUBBISH", "UNCATEGORIZED"]
 app.use(bodyParser.json())
 app.use(cors())
 
@@ -19,11 +19,11 @@ app.post('/add', async (req, res) => {
     for (let ele = 0; ele < split1.length; ele++) {
       text += split1[ele];
       if (ele % 2 == 0) {
-        const tt = { text: split1[ele], delimiter: split1[ele + 1], cat: CATEGORIES[Math.floor(Math.random() * CATEGORIES.length)] }
+        const tt = { text: split1[ele], delimiter: split1[ele + 1], cat: "UNCATEGORIZED" }
         newObj.push(tt)
       }
     }
-    const topicNameObject = await Topic.create({ topicName, topicBody: newObj });
+    const topicNameObject = await Topic.create({ topicName, topicBody: newObj, percentage: 0 });
     const { topicBody: responseObject } = topicNameObject;
     console.log(topicNameObject)
     res.json({ text, categorized: responseObject })
@@ -34,7 +34,7 @@ app.post('/add', async (req, res) => {
 
 app.get('/topics', async (req, res) => {
   try {
-    const topics = await Topic.find({}, { _id: 0 }).lean()
+    const topics = await Topic.find({}, { topicBody: 0, __v: 0 }).lean()
     res.json({ topics })
   } catch (error) {
     res.json(error)
@@ -45,22 +45,55 @@ app.get('/topic/:topicId', async (req, res) => {
   try {
     const { topicId } = req.params;
     const topicData = await Topic.findById(mongoose.Types.ObjectId(topicId), { __v: 0 })
-    res.json({ topic: topicData })
+    res.json(topicData)
   } catch (error) {
     res.json(error)
   }
 })
 
+const returnSumValue = (category) => {
+  switch (category) {
+    case "UNDERSTOOD": {
+      return 4;
+    }
+    case "SOMEWHAT UNDERSTOOD": {
+      return 3;
+    }
+    case "NOT CLEAR": {
+      return 2
+    }
+    case "WHAT RUBBISH": {
+      return 1;
+    }
+    default: {
+      return 0;
+    }
+  }
+}
+
 app.put('/block/:blockId', async (req, res) => {
   try {
     const { blockId } = req.params;
     const { category } = req.body;
+    const topic = await Topic.findOne({
+      "topicBody": { $elemMatch: { _id: mongoose.Types.ObjectId(blockId) } }
+    }, { __v: 0, _id: 0 }).lean()
+    const { topicBody } = topic;
+    const filteredTopicBody = topicBody.filter(ele => ele._id != blockId)
+    // console.log(topicBody.length);
+    // console.log(filteredTopicBody.length);
+    let sum = 0;
+    for (let i = 0; i < filteredTopicBody.length; i++) {
+      sum += returnSumValue(filteredTopicBody[i].cat)
+    }
+    sum += returnSumValue(category)
+    const newPercentage = (sum / (topicBody.length * 4)) * 100
     const update = await Topic.updateOne(
       {
         "topicBody": { "$elemMatch": { _id: mongoose.Types.ObjectId(blockId) } }
       },
       {
-        "$set": { "topicBody.$.cat": category }
+        "$set": { "topicBody.$.cat": category, percentage: Math.round(newPercentage) }
       })
     update.modifiedCount == 1 ?
       res.json({ message: 'Successfully updated!' }) :
